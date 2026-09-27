@@ -1,0 +1,51 @@
+HELP.md
+
+# Environment variables
+.env
+
+# Spring Boot local configuration
+src/main/resources/application.properties
+
+# Build
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+
+# STS
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+# Stripe CLI
+stripe.exe
