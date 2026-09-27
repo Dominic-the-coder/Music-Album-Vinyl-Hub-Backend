@@ -7,6 +7,7 @@ import com.example.mini_project.repositories.OrderRepository;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,29 +18,61 @@ public class OrderService {
     @Autowired
     private OrderRepository repository;
 
+
+    // ============================================================
+    // GET ALL ORDERS
+    // ============================================================
+
     public List<Order> getAllOrders() {
 
         return repository.findAll();
     }
 
-    public Order getOrderById(int id) {
+
+    // ============================================================
+    // GET ORDER BY ID
+    // ============================================================
+
+    public Order getOrderById(
+            int id
+    ) {
 
         return repository
                 .findById(id)
                 .orElse(null);
     }
 
+
+    // ============================================================
+    // GET ORDERS BY USER
+    // ============================================================
+
     public List<Order> getOrdersByUserId(
             int userId
     ) {
 
         return repository
-                .findByUserIdOrderByCreatedAtDesc(userId);
+                .findByUserIdOrderByCreatedAtDesc(
+                        userId
+                );
     }
 
+
+    // ============================================================
+    // CREATE ORDER
+    // ============================================================
+
+    @Transactional
     public Order createOrder(
             Order order
     ) {
+
+        if (order == null) {
+            throw new RuntimeException(
+                    "Order cannot be null"
+            );
+        }
+
 
         if (order.getCreatedAt() == null) {
 
@@ -48,6 +81,7 @@ public class OrderService {
             );
         }
 
+
         if (order.getStatus() == null) {
 
             order.setStatus(
@@ -55,17 +89,34 @@ public class OrderService {
             );
         }
 
-        if (order.getItems() != null) {
 
-            for (OrderItem item :
-                    order.getItems()) {
+        if (order.getItems() == null ||
+                order.getItems().isEmpty()) {
 
-                item.setOrder(order);
-            }
+            throw new RuntimeException(
+                    "Order must contain at least one item"
+            );
         }
+
+
+        for (OrderItem item :
+                order.getItems()) {
+
+            if (item == null) {
+                continue;
+            }
+
+            item.setOrder(order);
+        }
+
 
         return repository.save(order);
     }
+
+
+    // ============================================================
+    // UPDATE ORDER STATUS
+    // ============================================================
 
     public Order updateOrderStatus(
             int orderId,
@@ -81,16 +132,25 @@ public class OrderService {
             return null;
         }
 
+
         order.setStatus(status);
 
         return repository.save(order);
     }
 
-    public boolean deleteOrder(int id) {
+
+    // ============================================================
+    // DELETE ORDER
+    // ============================================================
+
+    public boolean deleteOrder(
+            int id
+    ) {
 
         if (!repository.existsById(id)) {
             return false;
         }
+
 
         repository.deleteById(id);
 

@@ -10,11 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
-
 @RestController
-@RequestMapping("/payments")
 public class PaymentController {
 
     @Autowired
@@ -25,7 +21,7 @@ public class PaymentController {
     // CREATE CHECKOUT SESSION
     // ============================================================
 
-    @PostMapping("/create-checkout-session")
+    @PostMapping("/payments/create-checkout-session")
     public ResponseEntity<?> createCheckoutSession(
             @RequestBody PaymentRequest request
     ) {
@@ -38,14 +34,16 @@ public class PaymentController {
                     );
 
             return ResponseEntity.ok(
-                    new PaymentResponse(checkoutUrl)
+                    new PaymentResponse(
+                            checkoutUrl
+                    )
             );
 
         } catch (StripeException e) {
 
             return ResponseEntity
                     .badRequest()
-                    .body(e.getMessage());
+                    .body("Unable to create checkout session.");
 
         } catch (RuntimeException e) {
 
@@ -60,7 +58,7 @@ public class PaymentController {
     // CHECK STRIPE PAYMENT STATUS
     // ============================================================
 
-    @GetMapping("/status/{sessionId}")
+    @GetMapping("/payments/status/{sessionId}")
     public ResponseEntity<?> getPaymentStatus(
             @PathVariable String sessionId
     ) {
@@ -88,7 +86,7 @@ public class PaymentController {
 
             return ResponseEntity
                     .badRequest()
-                    .body(e.getMessage());
+                    .body("Unable to verify payment.");
 
         } catch (RuntimeException e) {
 

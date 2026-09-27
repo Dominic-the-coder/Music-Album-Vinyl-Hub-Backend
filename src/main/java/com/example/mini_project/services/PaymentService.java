@@ -50,18 +50,14 @@ public class PaymentService {
 
 
     // ============================================================
-    // CREATE STRIPE CHECKOUT SESSION
+    // CREATE CHECKOUT SESSION
     // ============================================================
 
-    public String createCheckoutSession(int cartId)
-            throws StripeException {
+    public String createCheckoutSession(
+            int cartId
+    ) throws StripeException {
 
         Stripe.apiKey = stripeSecretKey;
-
-
-        // ========================================================
-        // GET CART
-        // ========================================================
 
         Cart cart =
                 cartRepository
@@ -69,25 +65,24 @@ public class PaymentService {
                         .orElse(null);
 
         if (cart == null) {
-            throw new RuntimeException("Cart not found");
+            throw new RuntimeException(
+                    "Cart not found"
+            );
         }
-
-
-        // ========================================================
-        // GET CART ITEMS
-        // ========================================================
 
         List<CartItem> cartItems =
-                cartItemRepository.findByCartId(cartId);
+                cartItemRepository.findByCartId(
+                        cartId
+                );
 
-        if (cartItems == null || cartItems.isEmpty()) {
-            throw new RuntimeException("Cart is empty");
+        if (cartItems == null ||
+                cartItems.isEmpty()) {
+
+            throw new RuntimeException(
+                    "Cart is empty"
+            );
         }
 
-
-        // ========================================================
-        // CREATE STRIPE SESSION
-        // ========================================================
 
         SessionCreateParams.Builder sessionBuilder =
                 SessionCreateParams
@@ -107,28 +102,15 @@ public class PaymentService {
                         );
 
 
-        // ========================================================
-        // ADD CART ITEMS TO STRIPE
-        // ========================================================
-
         for (CartItem cartItem : cartItems) {
-
-            // ----------------------------------------------------
-            // Validate quantity
-            // ----------------------------------------------------
 
             if (cartItem.getQuantity() < 1) {
 
                 throw new RuntimeException(
-                        "Invalid quantity for cart item: "
-                                + cartItem.getId()
+                        "Invalid cart quantity"
                 );
             }
 
-
-            // ----------------------------------------------------
-            // Get album
-            // ----------------------------------------------------
 
             Album album =
                     albumRepository
@@ -140,15 +122,10 @@ public class PaymentService {
             if (album == null) {
 
                 throw new RuntimeException(
-                        "Album not found: "
-                                + cartItem.getAlbumId()
+                        "Album not found"
                 );
             }
 
-
-            // ----------------------------------------------------
-            // Get price from CartItem
-            // ----------------------------------------------------
 
             BigDecimal itemPrice =
                     BigDecimal.valueOf(
@@ -156,18 +133,15 @@ public class PaymentService {
                     );
 
 
-            if (itemPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            if (itemPrice.compareTo(
+                    BigDecimal.ZERO
+            ) <= 0) {
 
                 throw new RuntimeException(
-                        "Invalid price for album: "
-                                + album.getTitle()
+                        "Invalid album price"
                 );
             }
 
-
-            // ----------------------------------------------------
-            // Convert RM to sen
-            // ----------------------------------------------------
 
             long priceInSen =
                     itemPrice
@@ -176,10 +150,6 @@ public class PaymentService {
                             )
                             .longValue();
 
-
-            // ----------------------------------------------------
-            // Product information
-            // ----------------------------------------------------
 
             SessionCreateParams.LineItem.PriceData.ProductData productData =
                     SessionCreateParams
@@ -192,10 +162,6 @@ public class PaymentService {
                             )
                             .build();
 
-
-            // ----------------------------------------------------
-            // Stripe price
-            // ----------------------------------------------------
 
             SessionCreateParams.LineItem.PriceData priceData =
                     SessionCreateParams
@@ -211,10 +177,6 @@ public class PaymentService {
                             )
                             .build();
 
-
-            // ----------------------------------------------------
-            // Stripe line item
-            // ----------------------------------------------------
 
             SessionCreateParams.LineItem lineItem =
                     SessionCreateParams
@@ -232,36 +194,14 @@ public class PaymentService {
             sessionBuilder.addLineItem(
                     lineItem
             );
-
-
-            // ----------------------------------------------------
-            // Debug information
-            // ----------------------------------------------------
-
-            System.out.println(
-                    "Stripe item: "
-                            + album.getTitle()
-                            + " | Price: RM "
-                            + cartItem.getPrice()
-                            + " | Quantity: "
-                            + cartItem.getQuantity()
-            );
         }
 
-
-        // ========================================================
-        // CREATE STRIPE SESSION
-        // ========================================================
 
         Session session =
                 Session.create(
                         sessionBuilder.build()
                 );
 
-
-        // ========================================================
-        // SAVE PAYMENT
-        // ========================================================
 
         Payment payment =
                 new Payment();
@@ -282,6 +222,7 @@ public class PaymentService {
                 session.getId()
         );
 
+
         paymentRepository.save(
                 payment
         );
@@ -295,6 +236,7 @@ public class PaymentService {
     // CHECK PAYMENT STATUS
     // ============================================================
 
+    @Transactional
     public String getPaymentStatus(
             String stripeSessionId
     ) throws StripeException {
@@ -302,29 +244,22 @@ public class PaymentService {
         Stripe.apiKey = stripeSecretKey;
 
 
-        // ========================================================
-        // FIND PAYMENT
-        // ========================================================
-
         Payment payment =
                 paymentRepository
                         .findByStripeSessionId(
                                 stripeSessionId
                         );
 
+
         if (payment == null) {
 
             throw new RuntimeException(
-                    "Payment not found for Stripe session: "
-                            + stripeSessionId
+                    "Payment not found"
             );
         }
 
 
-        // ========================================================
-        // ALREADY PROCESSED
-        // ========================================================
-
+        // Already processed
         if ("paid".equalsIgnoreCase(
                 payment.getPaymentStatus()
         )) {
@@ -333,26 +268,18 @@ public class PaymentService {
         }
 
 
-        // ========================================================
-        // GET STRIPE SESSION
-        // ========================================================
-
         Session session =
                 Session.retrieve(
                         stripeSessionId
                 );
 
 
-        String stripePaymentStatus =
+        String stripeStatus =
                 session.getPaymentStatus();
 
 
-        // ========================================================
-        // PAYMENT SUCCESSFUL
-        // ========================================================
-
         if ("paid".equalsIgnoreCase(
-                stripePaymentStatus
+                stripeStatus
         )) {
 
             markPaymentAsPaid(
@@ -363,14 +290,12 @@ public class PaymentService {
         }
 
 
-        return stripePaymentStatus;
+        return stripeStatus;
     }
 
 
     // ============================================================
-    // MARK PAYMENT AS PAID
-    // CREATE ORDER
-    // CLEAR CART
+    // PROCESS SUCCESSFUL PAYMENT
     // ============================================================
 
     @Transactional
@@ -378,28 +303,24 @@ public class PaymentService {
             String stripeSessionId
     ) {
 
-        // ========================================================
-        // FIND PAYMENT
-        // ========================================================
-
         Payment payment =
                 paymentRepository
                         .findByStripeSessionId(
                                 stripeSessionId
                         );
 
+
         if (payment == null) {
 
             throw new RuntimeException(
-                    "Payment not found for Stripe session: "
-                            + stripeSessionId
+                    "Payment not found"
             );
         }
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // PREVENT DUPLICATE ORDER
-        // ========================================================
+        // --------------------------------------------------------
 
         if ("paid".equalsIgnoreCase(
                 payment.getPaymentStatus()
@@ -410,14 +331,14 @@ public class PaymentService {
             }
 
             throw new RuntimeException(
-                    "Payment is already marked as paid but has no order"
+                    "Payment already processed"
             );
         }
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // GET CART
-        // ========================================================
+        // --------------------------------------------------------
 
         Cart cart =
                 cartRepository
@@ -426,77 +347,79 @@ public class PaymentService {
                         )
                         .orElse(null);
 
+
         if (cart == null) {
 
             throw new RuntimeException(
-                    "Cart not found: "
-                            + payment.getCartId()
+                    "Cart not found"
             );
         }
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // GET CART ITEMS
-        // ========================================================
+        // --------------------------------------------------------
 
         List<CartItem> cartItems =
                 cartItemRepository.findByCartId(
                         cart.getId()
                 );
 
-        if (cartItems == null || cartItems.isEmpty()) {
+
+        if (cartItems == null ||
+                cartItems.isEmpty()) {
 
             throw new RuntimeException(
-                    "Cart has no items"
+                    "Cart is empty"
             );
         }
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // CREATE ORDER
-        // ========================================================
+        // --------------------------------------------------------
 
         Order order =
                 new Order();
 
+
         order.setUserId(
                 cart.getUserId()
         );
+
 
         order.setStatus(
                 OrderStatus.PAID
         );
 
 
+        order.setCreatedAt(
+                java.time.LocalDateTime.now()
+        );
+
+
         List<OrderItem> orderItems =
                 new ArrayList<>();
+
 
         BigDecimal totalAmount =
                 BigDecimal.ZERO;
 
 
-        // ========================================================
-        // CONVERT CART ITEMS TO ORDER ITEMS
-        // ========================================================
+        // --------------------------------------------------------
+        // COPY CART ITEMS
+        // --------------------------------------------------------
 
-        for (CartItem cartItem : cartItems) {
-
-            // ----------------------------------------------------
-            // Validate quantity
-            // ----------------------------------------------------
+        for (CartItem cartItem :
+                cartItems) {
 
             if (cartItem.getQuantity() < 1) {
 
                 throw new RuntimeException(
-                        "Invalid quantity for cart item: "
-                                + cartItem.getId()
+                        "Invalid cart quantity"
                 );
             }
 
-
-            // ----------------------------------------------------
-            // Get album
-            // ----------------------------------------------------
 
             Album album =
                     albumRepository
@@ -505,48 +428,46 @@ public class PaymentService {
                             )
                             .orElse(null);
 
+
             if (album == null) {
 
                 throw new RuntimeException(
-                        "Album not found: "
-                                + cartItem.getAlbumId()
+                        "Album not found"
                 );
             }
 
 
-            // ----------------------------------------------------
-            // Use CartItem price
-            // ----------------------------------------------------
-
-            BigDecimal itemPrice =
+            BigDecimal price =
                     BigDecimal.valueOf(
                             cartItem.getPrice()
                     );
 
 
-            // ----------------------------------------------------
-            // Create OrderItem
-            // ----------------------------------------------------
-
             OrderItem orderItem =
                     new OrderItem();
+
 
             orderItem.setAlbumId(
                     album.getId()
             );
 
+
             orderItem.setAlbumTitle(
                     album.getTitle()
             );
 
+
             orderItem.setPrice(
-                    itemPrice
+                    price
             );
+
 
             orderItem.setQuantity(
                     cartItem.getQuantity()
             );
 
+
+            // IMPORTANT
             orderItem.setOrder(
                     order
             );
@@ -557,12 +478,8 @@ public class PaymentService {
             );
 
 
-            // ----------------------------------------------------
-            // Calculate item total
-            // ----------------------------------------------------
-
             BigDecimal itemTotal =
-                    itemPrice.multiply(
+                    price.multiply(
                             BigDecimal.valueOf(
                                     cartItem.getQuantity()
                             )
@@ -573,41 +490,26 @@ public class PaymentService {
                     totalAmount.add(
                             itemTotal
                     );
-
-
-            // ----------------------------------------------------
-            // Debug information
-            // ----------------------------------------------------
-
-            System.out.println(
-                    "Order item: "
-                            + album.getTitle()
-                            + " | Price: RM "
-                            + cartItem.getPrice()
-                            + " | Quantity: "
-                            + cartItem.getQuantity()
-                            + " | Total: RM "
-                            + itemTotal
-            );
         }
 
 
-        // ========================================================
-        // SET ORDER DATA
-        // ========================================================
+        // --------------------------------------------------------
+        // ATTACH ITEMS TO ORDER
+        // --------------------------------------------------------
 
         order.setItems(
                 orderItems
         );
+
 
         order.setTotalAmount(
                 totalAmount
         );
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // SAVE ORDER
-        // ========================================================
+        // --------------------------------------------------------
 
         Order savedOrder =
                 orderService.createOrder(
@@ -615,47 +517,45 @@ public class PaymentService {
                 );
 
 
-        if (savedOrder == null) {
+        if (savedOrder == null ||
+                savedOrder.getId() <= 0) {
 
             throw new RuntimeException(
-                    "Failed to create order"
+                    "Unable to create order"
             );
         }
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // MARK PAYMENT AS PAID
-        // ========================================================
+        // --------------------------------------------------------
 
         payment.setPaymentStatus(
                 "paid"
         );
 
+
         payment.setOrderId(
                 savedOrder.getId()
         );
+
 
         paymentRepository.save(
                 payment
         );
 
 
-        // ========================================================
-        // CLEAR CART
-        // ========================================================
+        // --------------------------------------------------------
+        // DELETE CART ITEMS
+        // --------------------------------------------------------
 
         cartItemRepository.deleteAll(
                 cartItems
         );
 
 
-        System.out.println(
-                "Payment completed. "
-                        + "Order ID: "
-                        + savedOrder.getId()
-                        + " | Cart ID: "
-                        + cart.getId()
-        );
+        // Force delete to database
+        cartItemRepository.flush();
 
 
         return savedOrder.getId();
@@ -676,9 +576,11 @@ public class PaymentService {
                                 stripeSessionId
                         );
 
+
         if (payment == null) {
             return null;
         }
+
 
         return payment.getOrderId();
     }
